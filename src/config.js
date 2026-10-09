@@ -1,7 +1,7 @@
 // Основные настройки базы знаний.
 
 export const server = {
-  name: 'Wizards мяу ✨',
+  name: 'Wizards ✨',
   tagline: 'Путеводитель по миру Wizards',
   // Текст под заголовком в превью ссылки (Telegram, VK, Discord).
   description: 'Правила, команды, расы, классы, крафты и чары сервера Wizards — всё в одном месте.',

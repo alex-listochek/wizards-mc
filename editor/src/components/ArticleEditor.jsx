@@ -542,6 +542,7 @@ function EditorScreen({ article, draft, state, theme, siteUrl, sitePublished }) 
           oldLabel="сохранённая версия"
           newLabel="текст в редакторе"
           onRevert={revertChange}
+          emptyText="Видимых изменений нет — отличаются только пробелы. При сохранении они уберутся, а можно просто отменить правки."
           onClose={() => setDialog(null)}
           footer={
             <>

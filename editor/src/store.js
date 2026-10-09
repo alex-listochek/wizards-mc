@@ -45,12 +45,25 @@ function setDrafts(drafts) {
 export const keyOf = (section, slug) => `${section}/${slug}`;
 export const EMPTY_FIELDS = { title: '', description: '', order: '', tags: [], updated: '' };
 
+// Черновик из localStorage мог испортиться — приводим поля к ожидаемым типам, чтобы редактор не упал.
+const asText = (v) => (typeof v === 'string' ? v : v == null ? '' : String(v));
+const cleanFields = (f) => ({
+  title: asText(f.title),
+  description: asText(f.description),
+  order: asText(f.order),
+  tags: Array.isArray(f.tags) ? f.tags.map(asText) : [],
+  updated: asText(f.updated),
+});
+
 function makeArticle(a) {
   const parsed = parseFile(a.raw);
   return { ...a, ...parsed, key: keyOf(a.section, a.slug), title: resolveTitle(parsed.fields, parsed.body, a.slug) };
 }
 
-const sameContent = (d, a) => d.body === a.body && JSON.stringify(d.fields) === JSON.stringify(a.fields);
+// Пробелы и пустые строки в конце текста при сохранении всё равно уберутся — такая «правка» ничего не меняет.
+// Поля сравниваем точно: в них печатают, и пробел в конце — это начало следующего слова.
+const sameBody = (x, y) => x.replace(/\s+$/, '') === y.replace(/\s+$/, '');
+const sameContent = (d, a) => sameBody(d.body, a.body) && JSON.stringify(d.fields) === JSON.stringify(a.fields);
 
 /** Текущее содержимое статьи: черновик, если он есть, иначе версия с диска. */
 export function current(key) {
@@ -74,7 +87,7 @@ export async function load({ initial = false } = {}) {
       const saved = JSON.parse(localStorage.getItem(DRAFTS_KEY) || '{}');
       for (const [k, d] of Object.entries(saved)) {
         if (d && d.fields && typeof d.body === 'string') {
-          drafts[k] = { ...d, fields: { ...EMPTY_FIELDS, ...d.fields } };
+          drafts[k] = { ...d, fields: cleanFields(d.fields) };
         }
       }
     } catch {}

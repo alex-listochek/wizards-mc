@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NewArticleDialog } from './components/ArticleDialogs.jsx';
 import ArticleEditor from './components/ArticleEditor.jsx';
 import Dashboard from './components/Dashboard.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { ConfirmHost } from './components/Modal.jsx';
 import SearchDialog from './components/SearchDialog.jsx';
 import SectionsPage from './components/SectionsPage.jsx';
@@ -116,7 +117,10 @@ export default function App() {
         theme={theme}
         onTheme={toggleTheme}
       />
-      <main className="workspace">{page}</main>
+      <main className="workspace">
+        {/* Ошибка на одной странице не ломает меню: можно уйти на другую страницу. */}
+        <ErrorBoundary resetKey={route.page + (route.key ?? '')}>{page}</ErrorBoundary>
+      </main>
       {dialog === 'search' && <SearchDialog onClose={() => setDialog(null)} />}
       {dialog?.type === 'new' && <NewArticleDialog section={dialog.section ?? (route.page === 'edit' ? route.key.split('/')[0] : undefined)} onClose={() => setDialog(null)} />}
       <ConfirmHost />

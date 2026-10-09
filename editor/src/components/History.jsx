@@ -6,11 +6,25 @@ import Icon from './Icons.jsx';
 import { Modal } from './Modal.jsx';
 
 /** Построчное сравнение. С onRevert(номер изменения) у каждого изменения есть кнопка «Вернуть как было». */
-export function DiffView({ oldText, newText, oldLabel, newLabel, onRevert }) {
+// Пробелы и табуляции в конце изменённой строки показываем значками, иначе строки выглядели бы одинаковыми.
+function LineText({ text, changed }) {
+  const m = changed && text.match(/^(.*?)([ \t]+)$/);
+  if (!m) return text || ' ';
+  return (
+    <>
+      {m[1]}
+      <span className="diff-ws" title="Пробелы в конце строки">
+        {m[2].replace(/ /g, '·').replace(/\t/g, '→')}
+      </span>
+    </>
+  );
+}
+
+export function DiffView({ oldText, newText, oldLabel, newLabel, onRevert, emptyText = 'Версии не отличаются' }) {
   const lines = useMemo(() => diffLines(oldText, newText), [oldText, newText]);
   const blocks = useMemo(() => changeBlocks(lines), [lines]);
   const stats = diffStats(lines);
-  if (!stats.added && !stats.removed) return <div className="empty-note">Версии не отличаются</div>;
+  if (!stats.added && !stats.removed) return <div className="empty-note">{emptyText}</div>;
   const at = new Map(lines.map((l, i) => [l, i]));
   return (
     <div className="diff">
@@ -45,7 +59,9 @@ export function DiffView({ oldText, newText, oldLabel, newLabel, onRevert }) {
                 <span className="ln">{l.oldNo ?? ''}</span>
                 <span className="ln">{l.newNo ?? ''}</span>
                 <span className="sign">{l.type === 'add' ? '+' : l.type === 'del' ? '−' : ''}</span>
-                <span className="text">{l.text || ' '}</span>
+                <span className="text">
+                  <LineText text={l.text} changed={l.type !== 'same'} />
+                </span>
               </div>
             </Fragment>
           );
@@ -56,10 +72,10 @@ export function DiffView({ oldText, newText, oldLabel, newLabel, onRevert }) {
 }
 
 /** Сравнение двух текстов в окне: «Что изменилось», «Файл изменён на диске». */
-export function DiffDialog({ title, oldText, newText, oldLabel, newLabel, footer, onRevert, onClose }) {
+export function DiffDialog({ title, oldText, newText, oldLabel, newLabel, footer, onRevert, emptyText, onClose }) {
   return (
     <Modal title={title} onClose={onClose} width={960} className="diff-modal" footer={footer}>
-      <DiffView oldText={oldText} newText={newText} oldLabel={oldLabel} newLabel={newLabel} onRevert={onRevert} />
+      <DiffView oldText={oldText} newText={newText} oldLabel={oldLabel} newLabel={newLabel} onRevert={onRevert} emptyText={emptyText} />
     </Modal>
   );
 }

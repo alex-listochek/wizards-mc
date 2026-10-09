@@ -7,7 +7,7 @@ export const server = {
   description: 'Правила, команды, расы, классы, крафты и чары сервера Wizards — всё в одном месте.',
   // Адрес сайта после публикации, например 'https://wiki.example.ru'.
   // Без него Telegram не покажет картинку в превью ссылки.
-  siteUrl: '',
+  siteUrl: 'https://alex-listochek.github.io/wizards-mc',
   // Данные для входа. Первый адрес показывается в шапке сайта.
   addresses: [
     { edition: 'Java', address: 'wizards.ru-mc.ru:25603', versions: '1.21.4 – 26.2' },

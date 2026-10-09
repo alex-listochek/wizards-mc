@@ -18,8 +18,8 @@ export const server = {
   // Статья для новичков — ссылка на главной.
   startArticle: '/start/first-steps',
   links: [
-    { label: 'Новости', url: 'https://t.me/wizards_mc' },
     { label: 'Поддержка', url: 'https://t.me/wizticket_bot' },
+    { label: 'Новости', url: 'https://t.me/wizards_mc' },
     { label: 'Беседа', url: 'https://t.me/+1oAPR-tY-dxkMTAy' },
     { label: 'Донат', url: 'https://wizards.easydonate.ru' },
     { label: 'Блог разработчика', url: 'https://telegram.me/wizards_dung' },

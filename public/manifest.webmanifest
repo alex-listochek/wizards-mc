@@ -1,0 +1,17 @@
+{
+  "name": "Wizards — база знаний",
+  "short_name": "Wizards",
+  "start_url": "./",
+  "scope": "./",
+  "display": "minimal-ui",
+  "background_color": "#160004",
+  "theme_color": "#160004",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "logo.jpg",
+      "sizes": "640x640",
+      "type": "image/jpeg"
+    }
+  ]
+}

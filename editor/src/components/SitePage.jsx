@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from '../lib/util.js';
 import { buildSections, saveConfig } from '../store.js';
 import Icon from './Icons.jsx';
+import PublishButton from './Publish.jsx';
 
 const KEYS = ['name', 'tagline', 'description', 'siteUrl', 'addresses', 'helpArticle', 'startArticle', 'links'];
 
@@ -141,6 +142,7 @@ export default function SitePage({ state }) {
           <button className="btn primary" onClick={save} disabled={!dirty || busy}>
             <Icon name="save" /> {busy ? 'Сохраняю…' : 'Сохранить'}
           </button>
+          <PublishButton unsaved={dirty} />
         </div>
       </header>
 

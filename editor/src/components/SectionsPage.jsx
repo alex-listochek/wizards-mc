@@ -3,6 +3,7 @@ import { SLUG_RE, plural, toSlug, toast } from '../lib/util.js';
 import { buildSections, deleteSection, saveConfig } from '../store.js';
 import Icon from './Icons.jsx';
 import { confirmDialog } from './Modal.jsx';
+import PublishButton from './Publish.jsx';
 
 const EMOJI = ['🚀', '📜', '⌨️', '🧙', '🌍', '⚔️', '⚒️', '✨', '👑', '📄', '📚', '🗺️', '🏰', '💎', '🛡️', '🏹', '🧪', '🐉', '🎮', '🎁', '📦', '🔮', '⚙️', '❓', '💬', '🏆', '🌲', '⛏️', '🪄', '🧭', '📌', '🔥'];
 
@@ -145,6 +146,7 @@ export default function SectionsPage({ state }) {
           <button className="btn primary" onClick={save} disabled={!dirty || busy}>
             <Icon name="save" /> {busy ? 'Сохраняю…' : 'Сохранить'}
           </button>
+          <PublishButton unsaved={dirty} />
         </div>
       </header>
 

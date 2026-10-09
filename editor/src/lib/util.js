@@ -99,6 +99,26 @@ export function usePref(name, initial) {
   return [value, update];
 }
 
+/** Запущен ли сайт по адресу url (проверка раз в 8 секунд). null — ещё не известно. */
+export function useOnline(url) {
+  const [online, setOnline] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const check = () =>
+      fetch(url, { mode: 'no-cors', cache: 'no-store' }).then(
+        () => alive && setOnline(true),
+        () => alive && setOnline(false),
+      );
+    check();
+    const t = setInterval(check, 8000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [url]);
+  return online;
+}
+
 // ---------- Уведомления ----------
 
 export const toast = (message, type = 'info') => window.dispatchEvent(new CustomEvent('editor-toast', { detail: { message, type } }));

@@ -9,7 +9,7 @@ import Sidebar from './components/Sidebar.jsx';
 import SitePage from './components/SitePage.jsx';
 import Toasts from './components/Toasts.jsx';
 import TrashPage from './components/TrashPage.jsx';
-import { plural, toast, usePref, useRoute } from './lib/util.js';
+import { plural, toast, useOnline, usePref, useRoute } from './lib/util.js';
 import { getState, load, useStore } from './store.js';
 
 function useTheme() {
@@ -33,6 +33,11 @@ export default function App() {
   const [theme, toggleTheme] = useTheme();
   const [siteUrl, setSiteUrl] = usePref('site-url', 'http://localhost:5173/');
   const [dialog, setDialog] = useState(null);
+  // Ссылки «На сайте» ведут на локальный сайт, а если он не запущен — на опубликованный (siteUrl из config.js).
+  const local = useOnline(siteUrl);
+  const publishedUrl = (state.config.server?.siteUrl ?? '').trim();
+  const published = publishedUrl && publishedUrl.replace(/\/*$/, '/');
+  const site = { local, url: local === false && published ? published : siteUrl };
 
   useEffect(() => {
     load({ initial: true })
@@ -90,11 +95,11 @@ export default function App() {
   const openNew = (section) => setDialog({ type: 'new', section });
 
   let page;
-  if (route.page === 'edit') page = <ArticleEditor articleKey={route.key} state={state} theme={theme} siteUrl={siteUrl} />;
+  if (route.page === 'edit') page = <ArticleEditor articleKey={route.key} state={state} theme={theme} siteUrl={site.url} sitePublished={site.url !== siteUrl} />;
   else if (route.page === 'sections') page = <SectionsPage state={state} />;
   else if (route.page === 'site') page = <SitePage state={state} />;
   else if (route.page === 'trash') page = <TrashPage />;
-  else page = <Dashboard state={state} onNew={openNew} onSearch={() => setDialog('search')} siteUrl={siteUrl} />;
+  else page = <Dashboard state={state} onNew={openNew} onSearch={() => setDialog('search')} siteUrl={site.url} />;
 
   return (
     <div className="app">
@@ -105,6 +110,7 @@ export default function App() {
         onSearch={() => setDialog('search')}
         siteUrl={siteUrl}
         onSiteUrl={setSiteUrl}
+        site={site}
         theme={theme}
         onTheme={toggleTheme}
       />

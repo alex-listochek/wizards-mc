@@ -3,18 +3,41 @@ import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 
 function run(view, spec) {
+  // Выделение, целиком попавшее в заменённый кусок, CodeMirror переносит «наизнанку» (начало после конца),
+  // и следующая команда падает. Такое выделение превращаем в курсор.
+  const { newSelection } = view.state.update(spec);
+  if (!spec.selection && newSelection.ranges.some((r) => r.from > r.to)) {
+    spec = { ...spec, selection: EditorSelection.create(newSelection.ranges.map((r) => (r.from > r.to ? EditorSelection.cursor(r.from) : r)), newSelection.mainIndex) };
+  }
   view.dispatch(view.state.update(spec, { scrollIntoView: true, userEvent: 'input' }));
   view.focus();
+}
+
+// Сколько символов c подряд в начале строки s или в её конце (atEnd).
+function repeats(s, c, atEnd) {
+  let n = 0;
+  while (n < s.length && s[atEnd ? s.length - 1 - n : n] === c) n++;
+  return n;
 }
 
 /** Обернуть выделение маркерами: **жирный**, *курсив*, `код`. Повторное нажатие снимает их. */
 export function toggleWrap(view, before, after = before, placeholder = 'текст') {
   const { state } = view;
+  // Маркер из одинаковых символов: считаем их подряд, ведь «**» — это жирный, а не курсив: *курсив*, **жирный**, ***оба***.
+  const c = before[0];
+  const uniform = before === after && before === c.repeat(before.length);
+  const isOn = (left, right) => {
+    const n = Math.min(left, right);
+    return n >= before.length && !(before === '*' && n === 2);
+  };
   run(
     view,
     state.changeByRange((r) => {
       const text = state.sliceDoc(r.from, r.to);
-      if (state.sliceDoc(r.from - before.length, r.from) === before && state.sliceDoc(r.to, r.to + after.length) === after) {
+      const outside = uniform
+        ? isOn(repeats(state.sliceDoc(Math.max(0, r.from - 3), r.from), c, true), repeats(state.sliceDoc(r.to, r.to + 3), c, false))
+        : state.sliceDoc(r.from - before.length, r.from) === before && state.sliceDoc(r.to, r.to + after.length) === after;
+      if (outside) {
         return {
           changes: [
             { from: r.from - before.length, to: r.from },
@@ -23,7 +46,8 @@ export function toggleWrap(view, before, after = before, placeholder = 'текс
           range: EditorSelection.range(r.from - before.length, r.to - before.length),
         };
       }
-      if (text.length >= before.length + after.length && text.startsWith(before) && text.endsWith(after)) {
+      const inside = uniform ? isOn(repeats(text, c, false), repeats(text, c, true)) : text.startsWith(before) && text.endsWith(after);
+      if (text.length >= before.length + after.length && inside) {
         const inner = text.slice(before.length, text.length - after.length);
         return { changes: { from: r.from, to: r.to, insert: inner }, range: EditorSelection.range(r.from, r.from + inner.length) };
       }
@@ -140,7 +164,7 @@ export function insertCallout(view, type) {
       .map((l) => l.replace(/^>\s?/, ''))
       .map((l) => (l ? `> ${l}` : '>'))
       .join('\n');
-    run(view, { changes: { from, to, insert: head + body } });
+    run(view, { changes: { from, to, insert: head + body }, selection: EditorSelection.single(from + head.length, from + head.length + body.length) });
     return;
   }
   const text = 'Текст';
@@ -154,7 +178,8 @@ export function insertCodeBlock(view) {
   if (!r.empty) {
     const from = state.doc.lineAt(r.from).from;
     const to = state.doc.lineAt(r.to).to;
-    run(view, { changes: { from, to, insert: '```\n' + state.sliceDoc(from, to) + '\n```' } });
+    const code = state.sliceDoc(from, to);
+    run(view, { changes: { from, to, insert: '```\n' + code + '\n```' }, selection: EditorSelection.single(from + 4, from + 4 + code.length) });
     return;
   }
   insertBlock(view, '```\nкод\n```', [4, 7]);

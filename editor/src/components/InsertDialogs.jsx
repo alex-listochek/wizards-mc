@@ -1,7 +1,7 @@
 import { toPlain } from '@site/lib/markdown.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { plural, toast } from '../lib/util.js';
+import { plural, toSlug, toast } from '../lib/util.js';
 import Icon from './Icons.jsx';
 import { Modal } from './Modal.jsx';
 
@@ -162,10 +162,13 @@ export function ArticleLinkDialog({ index, currentKey, selectedText, onInsert, o
 
 export const previewSrc = (url) => (/^(https?:|data:|\/)/.test(url) ? url : `/site-public/${url}`);
 
+const IMAGE_EXT = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif', 'image/webp': '.webp', 'image/avif': '.avif', 'image/svg+xml': '.svg' };
+
 export async function uploadImage(file, slug) {
-  const ext = (file.name.match(/\.[a-z0-9]+$/i)?.[0] || `.${file.type.split('/')[1] || 'png'}`).toLowerCase().replace('.jpeg', '.jpg');
-  // У вставленных из буфера картинок имя «image.png» — даём им понятное имя по статье.
-  const base = /^image\.\w+$/i.test(file.name) || !file.name ? `${slug}-${Date.now().toString(36)}` : file.name.replace(/\.[^.]+$/, '');
+  const ext = file.name.match(/\.[a-z0-9]+$/i)?.[0].toLowerCase().replace('.jpeg', '.jpg') || IMAGE_EXT[file.type] || '.png';
+  // У вставленных из буфера картинок имя «image.png» — даём им понятное имя по статье. Русское имя файла пишем латиницей.
+  const named = file.name && !/^image\.\w+$/i.test(file.name) ? toSlug(file.name.replace(/\.[^.]+$/, '')) : '';
+  const base = named || `${slug}-${Date.now().toString(36)}`;
   try {
     const { url } = await api.upload(file, base + ext);
     toast(`Картинка сохранена: public/${url}`, 'success');

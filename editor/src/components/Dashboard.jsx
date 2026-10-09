@@ -3,6 +3,7 @@ import { findProblems, useLinkIndex } from '../lib/links.js';
 import { editPath, formatAgo, go, plural, setJump, toast } from '../lib/util.js';
 import { saveAll } from '../store.js';
 import Icon from './Icons.jsx';
+import PublishButton from './Publish.jsx';
 
 export default function Dashboard({ state, onNew, onSearch, siteUrl }) {
   const index = useLinkIndex(state);
@@ -53,6 +54,7 @@ export default function Dashboard({ state, onNew, onSearch, siteUrl }) {
           <button className="btn primary" onClick={() => onNew()}>
             <Icon name="plus" /> Новая статья
           </button>
+          <PublishButton />
         </div>
       </header>
 
@@ -163,7 +165,7 @@ export default function Dashboard({ state, onNew, onSearch, siteUrl }) {
               Каждое сохранение откладывает прежнюю версию в историю, удалённые статьи попадают в корзину — их можно вернуть.
             </li>
             <li>
-              Чтобы опубликовать изменения, соберите сайт (<code>npm run build</code>) и загрузите на хостинг, как обычно.
+              Чтобы изменения появились на сайте и в Telegram, нажмите «Опубликовать»: правки уйдут на GitHub, и через 1–2 минуты сайт обновится сам.
             </li>
           </ol>
         </section>

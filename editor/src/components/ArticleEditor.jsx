@@ -24,6 +24,7 @@ import MarkdownEditor from './MarkdownEditor.jsx';
 import MetaPanel from './MetaPanel.jsx';
 import { confirmDialog } from './Modal.jsx';
 import Preview from './Preview.jsx';
+import PublishButton from './Publish.jsx';
 import Toolbar from './Toolbar.jsx';
 
 function MoreMenu({ items }) {
@@ -101,11 +102,11 @@ function Problems({ problems, onShow, onFix }) {
   );
 }
 
-export default function ArticleEditor({ articleKey, state, theme, siteUrl }) {
+export default function ArticleEditor({ articleKey, state, theme, siteUrl, sitePublished }) {
   const article = state.articles[articleKey];
   const draft = state.drafts[articleKey];
   if (!article) return <MissingArticle articleKey={articleKey} draft={draft} />;
-  return <EditorScreen article={article} draft={draft} state={state} theme={theme} siteUrl={siteUrl} />;
+  return <EditorScreen article={article} draft={draft} state={state} theme={theme} siteUrl={siteUrl} sitePublished={sitePublished} />;
 }
 
 function MissingArticle({ articleKey, draft }) {
@@ -142,7 +143,7 @@ function MissingArticle({ articleKey, draft }) {
   );
 }
 
-function EditorScreen({ article, draft, state, theme, siteUrl }) {
+function EditorScreen({ article, draft, state, theme, siteUrl, sitePublished }) {
   const key = article.key;
   const { fields, body } = draft ?? article;
   const dirty = Boolean(draft);
@@ -360,7 +361,19 @@ function EditorScreen({ article, draft, state, theme, siteUrl }) {
           <button className="btn" onClick={() => setDialog('history')} title="Прежние версии статьи">
             <Icon name="history" /> История
           </button>
-          <a className="btn" href={siteLink} target="_blank" rel="noreferrer" title={dirty ? 'На сайте видна сохранённая версия' : 'Открыть статью на сайте'}>
+          <a
+            className="btn"
+            href={siteLink}
+            target="_blank"
+            rel="noreferrer"
+            title={
+              sitePublished
+                ? 'Открыть статью на опубликованном сайте — там видна последняя опубликованная версия'
+                : dirty
+                  ? 'На сайте видна сохранённая версия'
+                  : 'Открыть статью на сайте'
+            }
+          >
             <Icon name="external" /> На сайте
           </a>
           <MoreMenu
@@ -373,6 +386,7 @@ function EditorScreen({ article, draft, state, theme, siteUrl }) {
           <button className="btn primary" onClick={save} disabled={!dirty || saving} title="Сохранить (Ctrl+S)">
             <Icon name="save" /> {saving ? 'Сохраняю…' : 'Сохранить'}
           </button>
+          <PublishButton />
         </div>
       </header>
 

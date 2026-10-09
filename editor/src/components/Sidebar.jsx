@@ -5,25 +5,11 @@ import Icon from './Icons.jsx';
 
 const norm = (s) => s.toLowerCase().replace(/ё/g, 'е');
 
-function SiteStatus({ siteUrl, onChange }) {
-  const [online, setOnline] = useState(null);
+// Локальный сайт (npm run dev) показывает правки сразу после сохранения. Если он не запущен — ведём на опубликованный сайт.
+function SiteStatus({ siteUrl, onChange, site }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(siteUrl);
-
-  useEffect(() => {
-    let alive = true;
-    const check = () =>
-      fetch(siteUrl, { mode: 'no-cors', cache: 'no-store' }).then(
-        () => alive && setOnline(true),
-        () => alive && setOnline(false),
-      );
-    check();
-    const t = setInterval(check, 8000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
-  }, [siteUrl]);
+  const online = site.local;
 
   if (editing) {
     return (
@@ -40,18 +26,30 @@ function SiteStatus({ siteUrl, onChange }) {
     );
   }
 
-  const host = siteUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const host = (u) => u.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const remote = online === false && site.url !== siteUrl;
   return (
     <div className="site-status">
-      <span className={`dot ${online ? 'on' : online === false ? 'off' : ''}`} />
-      <a
-        href={siteUrl}
-        target="_blank"
-        rel="noreferrer"
-        title={online === false ? 'Сайт не запущен. В папке сайта выполните: npm run dev' : 'Открыть сайт в новой вкладке'}
-      >
-        {online === false ? 'Сайт не запущен' : 'Сайт'} · {host}
-      </a>
+      <span className={`dot ${online ? 'on' : online === false && !remote ? 'off' : ''}`} />
+      {remote ? (
+        <a
+          href={site.url}
+          target="_blank"
+          rel="noreferrer"
+          title={`Опубликованный сайт: на нём видна последняя опубликованная версия.\nЛокальный сайт (${host(siteUrl)}) с правками сразу после сохранения не запущен — в папке сайта: npm run dev`}
+        >
+          Сайт · {host(site.url)}
+        </a>
+      ) : (
+        <a
+          href={siteUrl}
+          target="_blank"
+          rel="noreferrer"
+          title={online === false ? 'Сайт не запущен. В папке сайта выполните: npm run dev' : 'Открыть сайт в новой вкладке'}
+        >
+          {online === false ? 'Сайт не запущен' : 'Сайт'} · {host(siteUrl)}
+        </a>
+      )}
       <button className="icon-btn small" title="Изменить адрес сайта" onClick={() => (setValue(siteUrl), setEditing(true))}>
         <Icon name="settings" size={13} />
       </button>
@@ -59,7 +57,7 @@ function SiteStatus({ siteUrl, onChange }) {
   );
 }
 
-export default function Sidebar({ state, route, onNew, onSearch, siteUrl, onSiteUrl, theme, onTheme }) {
+export default function Sidebar({ state, route, onNew, onSearch, siteUrl, onSiteUrl, site, theme, onTheme }) {
   const sections = buildSections(state);
   const [filter, setFilter] = useState('');
   const [collapsed, setCollapsed] = usePref('collapsed', []);
@@ -234,7 +232,7 @@ export default function Sidebar({ state, route, onNew, onSearch, siteUrl, onSite
         <a className={`side-link${route.page === 'trash' ? ' active' : ''}`} href="#/trash">
           <Icon name="trash" size={15} /> Корзина
         </a>
-        <SiteStatus siteUrl={siteUrl} onChange={onSiteUrl} />
+        <SiteStatus siteUrl={siteUrl} onChange={onSiteUrl} site={site} />
       </div>
     </aside>
   );

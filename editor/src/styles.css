@@ -2453,6 +2453,158 @@ input[type='checkbox'] {
   }
 }
 
+/* ---------- Публикация ---------- */
+
+.publish-btn .badge {
+  margin-right: -4px;
+}
+
+.spinner {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0.7;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.publish {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.publish-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+
+.publish-progress.ok {
+  background: var(--ok-soft);
+}
+
+.publish-progress.fail {
+  background: var(--danger-soft);
+}
+
+.publish-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-weight: 500;
+}
+
+.publish-step > :first-child {
+  margin-top: 3px;
+}
+
+.publish-progress.ok .publish-step > svg {
+  color: var(--ok);
+}
+
+.publish-progress.fail .publish-step > svg {
+  color: var(--danger);
+}
+
+.publish-progress p {
+  margin: 0;
+}
+
+.publish-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-left: 24px;
+  font-size: 13px;
+}
+
+.publish-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.publish-warn {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 13.5px;
+}
+
+.publish-warn > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.publish-warn p {
+  margin: 0;
+}
+
+.publish-warn p + p {
+  margin-top: 4px;
+}
+
+.publish-list {
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.publish-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+}
+
+.publish-list li > svg {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+.publish-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.publish-failure details {
+  margin-top: 6px;
+  font-size: 12.5px;
+}
+
+.publish-failure pre {
+  max-height: 160px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--code-bg);
+  font-family: var(--mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;

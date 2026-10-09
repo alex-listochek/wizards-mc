@@ -12,7 +12,7 @@ async function request(method, url, body) {
   try {
     res = await fetch(url, init);
   } catch {
-    throw new Error('Нет связи с редактором. Проверьте, что он запущен (npm run dev в папке editor).');
+    throw new Error('Нет связи с редактором — похоже, его окно закрыли. Запустите редактор снова (ярлык или editor/start.cmd), правки не пропадут.');
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -40,4 +40,6 @@ export const api = {
   trash: () => request('GET', '/api/trash'),
   restore: (id) => request('POST', '/api/trash/restore', { id }),
   upload: (file, name) => request('POST', `/api/upload?${qs({ name })}`, file),
+  publishStatus: () => request('GET', '/api/publish/status'),
+  publish: (message) => request('POST', '/api/publish', { message }),
 };

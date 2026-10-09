@@ -1,6 +1,7 @@
 // Локальный API редактора: читает и пишет файлы сайта.
 // Работает внутри dev-сервера Vite, наружу не открыт (только localhost).
 
+import { execFile } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -139,6 +140,76 @@ export function wikiApi({ siteRoot, dataDir }) {
     }
     return changed;
   }
+
+  // ---------- Публикация через git ----------
+
+  // Git для Windows не всегда добавлен в PATH — тогда ищем его в обычном месте установки.
+  const gitCommands = ['git', path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'cmd', 'git.exe')];
+
+  function git(args, { input, timeout = 30_000 } = {}) {
+    const run = (i) =>
+      new Promise((resolve, reject) => {
+        const child = execFile(
+          gitCommands[i],
+          ['-c', 'core.quotepath=false', '-c', 'core.safecrlf=false', ...args],
+          // Без терминала git не должен ничего спрашивать, иначе запрос зависнет.
+          { cwd: siteRoot, timeout, windowsHide: true, maxBuffer: 20 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } },
+          (err, stdout, stderr) => {
+            if (err?.code === 'ENOENT' && i + 1 < gitCommands.length) return resolve(run(i + 1));
+            if (err?.code === 'ENOENT') return reject(new HttpError(500, 'Не найден Git. Установите Git для Windows: https://git-scm.com'));
+            if (err) return reject(Object.assign(err, { stderr: String(stderr || err.message).trim() }));
+            resolve(stdout);
+          },
+        );
+        if (input !== undefined) child.stdin.end(input);
+      });
+    return run(0);
+  }
+
+  // owner/repo из адреса вида https://github.com/owner/repo.git или git@github.com:owner/repo.git
+  async function githubRepo() {
+    const url = (await git(['remote', 'get-url', 'origin']).catch(() => '')).trim();
+    const m = url.match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?\/?$/);
+    return m ? { owner: m[1], name: m[2], siteUrl: `https://${m[1]}.github.io/${m[2]}/`, actionsUrl: `https://github.com/${m[1]}/${m[2]}/actions` } : null;
+  }
+
+  // Изменённые файлы: XY путь\0, у переименований следом идёт старый путь.
+  async function changedFiles() {
+    const out = await git(['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+    const parts = out.split('\0');
+    const files = [];
+    for (let i = 0; i < parts.length; i++) {
+      const e = parts[i];
+      if (e.length < 4) continue;
+      const [x, y] = e;
+      if (x === 'R' || x === 'C') i++;
+      const kind = x === '?' || x === 'A' ? 'added' : x === 'D' || y === 'D' ? 'deleted' : x === 'R' ? 'renamed' : 'modified';
+      files.push({ path: e.slice(3), kind });
+    }
+    return files;
+  }
+
+  // Сколько сохранённых в git версий ещё не отправлено на GitHub. null — у ветки нет пары на GitHub.
+  const unpushed = () =>
+    git(['rev-list', '--count', '@{u}..HEAD']).then(
+      (out) => Number(out.trim()),
+      () => null,
+    );
+
+  // Понятное объяснение частых ошибок git.
+  function gitError(e, action) {
+    if (e instanceof HttpError) return e;
+    const text = e.stderr || e.message;
+    let hint = '';
+    if (e.killed) hint = 'GitHub слишком долго не отвечал. Проверьте интернет и попробуйте ещё раз.';
+    else if (/could not resolve host|unable to access|failed to connect|timed out/i.test(text)) hint = 'Нет связи с GitHub. Проверьте интернет и попробуйте ещё раз.';
+    else if (/authentication|could not read username|permission denied|403/i.test(text)) hint = 'GitHub не пустил: нужно заново войти в аккаунт. Выполните «git push» в папке сайта — откроется окно входа.';
+    else if (/not a git repository/i.test(text)) hint = 'Папка сайта не подключена к GitHub (нет git-репозитория).';
+    else if (/repository not found|does not appear to be a git repository/i.test(text)) hint = 'Репозиторий на GitHub не найден — проверьте адрес: git remote -v в папке сайта.';
+    return new HttpError(500, `${action}. ${hint}`.trim(), { details: text });
+  }
+
+  let publishing = false;
 
   // ---------- Обработчики ----------
 
@@ -300,6 +371,50 @@ export function wikiApi({ siteRoot, dataDir }) {
       markOwn(dst);
       await fs.rename(path.join(trashDir, name), dst);
       return { section: m[2], slug: m[3] };
+    },
+
+    // Что изменилось с последней публикации.
+    async 'GET /api/publish/status'() {
+      try {
+        await git(['rev-parse', '--is-inside-work-tree']);
+      } catch (e) {
+        throw gitError(e, 'Публикация недоступна');
+      }
+      const [files, ahead, repo] = await Promise.all([changedFiles(), unpushed(), githubRepo()]);
+      return { files, ahead: ahead ?? 0, hasUpstream: ahead !== null, repo, publishing };
+    },
+
+    // Сохраняет все изменения в git и отправляет на GitHub — дальше GitHub сам соберёт и выложит сайт.
+    async 'POST /api/publish'({ body }) {
+      if (publishing) throw new HttpError(409, 'Публикация уже идёт');
+      publishing = true;
+      try {
+        await git(['add', '-A']).catch((e) => Promise.reject(gitError(e, 'Не удалось подготовить файлы')));
+        const staged = await git(['diff', '--cached', '--name-only']);
+        if (staged.trim()) {
+          const message = String(body.message || '').trim() || 'Обновление сайта';
+          await git(['commit', '-q', '-F', '-'], { input: message }).catch((e) => Promise.reject(gitError(e, 'Не удалось сохранить версию')));
+        }
+        const hasUpstream = (await unpushed()) !== null;
+        const push = () => git(hasUpstream ? ['push', '-q'] : ['push', '-q', '-u', 'origin', 'HEAD'], { timeout: 180_000 });
+        try {
+          await push();
+        } catch (e) {
+          // На GitHub есть правки, которых здесь нет (например, файл поменяли на сайте github.com): подтягиваем их и пробуем ещё раз.
+          if (!/rejected|fetch first|non-fast-forward/i.test(e.stderr || '')) throw gitError(e, 'Не удалось отправить на GitHub');
+          try {
+            await git(['pull', '-q', '--rebase'], { timeout: 180_000 });
+          } catch (pullError) {
+            await git(['rebase', '--abort']).catch(() => {});
+            throw gitError(pullError, 'На GitHub есть изменения, которые не получилось совместить с вашими');
+          }
+          await push().catch((e2) => Promise.reject(gitError(e2, 'Не удалось отправить на GitHub')));
+        }
+        const sha = (await git(['rev-parse', 'HEAD'])).trim();
+        return { sha, repo: await githubRepo() };
+      } finally {
+        publishing = false;
+      }
     },
 
     // Картинка сохраняется в public/images сайта. Одинаковые файлы не дублируются.

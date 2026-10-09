@@ -14,7 +14,7 @@ npm run build    # готовый сайт в папке dist/
 
 ### Публикация на GitHub Pages
 
-Сайт собирается и публикуется сам при каждом `git push` в ветку `main` — это делает [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). Один раз включите в репозитории: **Settings → Pages → Source: GitHub Actions**. Ход сборки виден во вкладке **Actions**, сайт открывается по адресу `https://<логин>.github.io/<репозиторий>/`.
+Проще всего — кнопкой **«Опубликовать»** в редакторе. Под капотом это обычный `git push`: сайт собирается и публикуется сам при каждом push в ветку `main` — это делает [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). Один раз включите в репозитории: **Settings → Pages → Source: GitHub Actions**. Ход сборки виден во вкладке **Actions**, сайт открывается по адресу `https://<логин>.github.io/<репозиторий>/`.
 
 ### Telegram Mini App
 

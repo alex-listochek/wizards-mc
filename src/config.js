@@ -18,10 +18,9 @@ export const server = {
   // Статья для новичков — ссылка на главной.
   startArticle: '/start/first-steps',
   links: [
-    { label: 'Донат', url: 'https://wizards.easydonate.ru' },
-    { label: 'Беседа', url: 'https://t.me/+1oAPR-tY-dxkMTAy' },
     { label: 'Поддержка', url: 'https://t.me/wizticket_bot' },
-    { label: 'Ивенты', url: 'https://t.me/+rW9X-PbxOkc5NGVi' },
+    { label: 'Беседа', url: 'https://t.me/+1oAPR-tY-dxkMTAy' },
+    { label: 'Донат', url: 'https://wizards.easydonate.ru' },
     { label: 'Блог разработчика', url: 'https://telegram.me/wizards_dung' },
   ],
 };

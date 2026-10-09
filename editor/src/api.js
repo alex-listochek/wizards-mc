@@ -41,5 +41,5 @@ export const api = {
   restore: (id) => request('POST', '/api/trash/restore', { id }),
   upload: (file, name) => request('POST', `/api/upload?${qs({ name })}`, file),
   publishStatus: () => request('GET', '/api/publish/status'),
-  publish: (message) => request('POST', '/api/publish', { message }),
+  publish: (message, resolve) => request('POST', '/api/publish', { message, resolve }),
 };

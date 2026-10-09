@@ -100,11 +100,12 @@ async function watchBuild(sha, repo) {
   if (state.build?.sha === sha) set({ build: { ...state.build, phase: 'unknown' } });
 }
 
-export async function publish(message) {
+/** resolve: 'mine' — если правки пересеклись с правками на GitHub, оставить здешние. */
+export async function publish(message, resolve) {
   set({ build: { phase: 'sending' } });
   let res;
   try {
-    res = await api.publish(message);
+    res = await api.publish(message, resolve);
   } catch (e) {
     set({ build: null });
     refreshStatus();

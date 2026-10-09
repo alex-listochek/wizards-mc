@@ -146,14 +146,15 @@ export function wikiApi({ siteRoot, dataDir }) {
   // Git для Windows не всегда добавлен в PATH — тогда ищем его в обычном месте установки.
   const gitCommands = ['git', path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'cmd', 'git.exe')];
 
-  function git(args, { input, timeout = 30_000 } = {}) {
+  function gitOnce(args, { input, timeout = 30_000 } = {}) {
     const run = (i) =>
       new Promise((resolve, reject) => {
         const child = execFile(
           gitCommands[i],
           ['-c', 'core.quotepath=false', '-c', 'core.safecrlf=false', ...args],
           // Без терминала git не должен ничего спрашивать, иначе запрос зависнет.
-          { cwd: siteRoot, timeout, windowsHide: true, maxBuffer: 20 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } },
+          // GIT_OPTIONAL_LOCKS=0: проверка изменений (git status) не занимает папку и не мешает другим программам.
+          { cwd: siteRoot, timeout, windowsHide: true, maxBuffer: 20 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' } },
           (err, stdout, stderr) => {
             if (err?.code === 'ENOENT' && i + 1 < gitCommands.length) return resolve(run(i + 1));
             if (err?.code === 'ENOENT') return reject(new HttpError(500, 'Не найден Git. Установите Git для Windows: https://git-scm.com'));
@@ -164,6 +165,27 @@ export function wikiApi({ siteRoot, dataDir }) {
         if (input !== undefined) child.stdin.end(input);
       });
     return run(0);
+  }
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const isLocked = (e) => /index\.lock'?: File exists|another git process/i.test(e?.stderr || '');
+
+  // Все вызовы git идут по очереди: два git сразу в одной папке мешают друг другу (index.lock).
+  // Если папку ненадолго заняла другая программа (VS Code, GitHub Desktop), ждём и повторяем — git в таком случае ничего не успевает изменить.
+  let gitQueue = Promise.resolve();
+  function git(args, options) {
+    const run = gitQueue.then(async () => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await gitOnce(args, options);
+        } catch (e) {
+          if (!isLocked(e) || attempt >= 6) throw e;
+          await sleep(500);
+        }
+      }
+    });
+    gitQueue = run.catch(() => {});
+    return run;
   }
 
   // owner/repo из адреса вида https://github.com/owner/repo.git или git@github.com:owner/repo.git
@@ -196,12 +218,46 @@ export function wikiApi({ siteRoot, dataDir }) {
       () => null,
     );
 
+  // На новом компьютере в git может быть не указан автор — тогда подписываем версию так же, как прошлую.
+  async function authorArgs() {
+    const get = (key) => git(['config', key]).then((s) => s.trim(), () => '');
+    const [name, email] = await Promise.all([get('user.name'), get('user.email')]);
+    if (name && email) return [];
+    const [lastName, lastEmail] = (await git(['log', '-1', '--format=%an%n%ae']).catch(() => '')).trim().split('\n');
+    return ['-c', `user.name=${name || lastName || 'Редактор базы знаний'}`, '-c', `user.email=${email || lastEmail || 'editor@localhost'}`];
+  }
+
+  // Если прошлая публикация оборвалась посреди совмещения правок (git rebase), откатываем его — иначе git так и застрянет.
+  async function abortLeftoverRebase() {
+    const gitDir = path.resolve(siteRoot, (await git(['rev-parse', '--git-dir'])).trim());
+    if ((await exists(path.join(gitDir, 'rebase-merge'))) || (await exists(path.join(gitDir, 'rebase-apply')))) {
+      await git(['rebase', '--abort']).catch(() => {});
+    }
+  }
+
+  // При запуске подтягиваем свежие правки с GitHub — например, сделанные на другом компьютере.
+  // Только «перемотка вперёд»: если здесь есть свои неопубликованные правки к тем же файлам, git ничего не тронет.
+  async function syncOnStart(logger) {
+    try {
+      await git(['rev-parse', '--is-inside-work-tree']);
+      await abortLeftoverRebase();
+      if ((await unpushed()) === null) return;
+      const before = (await git(['rev-parse', 'HEAD'])).trim();
+      await git(['pull', '--ff-only', '-q'], { timeout: 60_000 });
+      if ((await git(['rev-parse', 'HEAD'])).trim() !== before) logger.info('[wiki] Подтянуты свежие правки с GitHub');
+    } catch {
+      // Нет интернета, нет git или здесь свои правки — работаем с тем, что есть на диске.
+    }
+  }
+
   // Понятное объяснение частых ошибок git.
   function gitError(e, action) {
     if (e instanceof HttpError) return e;
     const text = e.stderr || e.message;
     let hint = '';
     if (e.killed) hint = 'GitHub слишком долго не отвечал. Проверьте интернет и попробуйте ещё раз.';
+    else if (isLocked(e))
+      hint = 'Папку сайта занял другой git — например, VS Code или GitHub Desktop. Закройте их и попробуйте ещё раз. Если не поможет — удалите файл .git/index.lock в папке сайта.';
     else if (/could not resolve host|unable to access|failed to connect|timed out/i.test(text)) hint = 'Нет связи с GitHub. Проверьте интернет и попробуйте ещё раз.';
     else if (/authentication|could not read username|permission denied|403/i.test(text)) hint = 'GitHub не пустил: нужно заново войти в аккаунт. Выполните «git push» в папке сайта — откроется окно входа.';
     else if (/not a git repository/i.test(text)) hint = 'Папка сайта не подключена к GitHub (нет git-репозитория).';
@@ -210,6 +266,8 @@ export function wikiApi({ siteRoot, dataDir }) {
   }
 
   let publishing = false;
+  // Подтягивание правок при запуске: публикация ждёт его окончания, чтобы два git не работали одновременно.
+  let startupSync = Promise.resolve();
 
   // ---------- Обработчики ----------
 
@@ -389,11 +447,14 @@ export function wikiApi({ siteRoot, dataDir }) {
       if (publishing) throw new HttpError(409, 'Публикация уже идёт');
       publishing = true;
       try {
+        await startupSync;
+        await abortLeftoverRebase().catch(() => {});
         await git(['add', '-A']).catch((e) => Promise.reject(gitError(e, 'Не удалось подготовить файлы')));
         const staged = await git(['diff', '--cached', '--name-only']);
+        const author = await authorArgs();
         if (staged.trim()) {
           const message = String(body.message || '').trim() || 'Обновление сайта';
-          await git(['commit', '-q', '-F', '-'], { input: message }).catch((e) => Promise.reject(gitError(e, 'Не удалось сохранить версию')));
+          await git([...author, 'commit', '-q', '-F', '-'], { input: message }).catch((e) => Promise.reject(gitError(e, 'Не удалось сохранить версию')));
         }
         const hasUpstream = (await unpushed()) !== null;
         const push = () => git(hasUpstream ? ['push', '-q'] : ['push', '-q', '-u', 'origin', 'HEAD'], { timeout: 180_000 });
@@ -402,11 +463,17 @@ export function wikiApi({ siteRoot, dataDir }) {
         } catch (e) {
           // На GitHub есть правки, которых здесь нет (например, файл поменяли на сайте github.com): подтягиваем их и пробуем ещё раз.
           if (!/rejected|fetch first|non-fast-forward/i.test(e.stderr || '')) throw gitError(e, 'Не удалось отправить на GitHub');
+          // «Оставить мою версию»: в пересёкшихся местах побеждают здешние правки (при rebase свои правки — это theirs).
+          const strategy = body.resolve === 'mine' ? ['-X', 'theirs'] : [];
           try {
-            await git(['pull', '-q', '--rebase'], { timeout: 180_000 });
+            await git([...author, 'pull', '-q', '--rebase', ...strategy], { timeout: 180_000 });
           } catch (pullError) {
+            // Какие файлы правили и здесь, и на GitHub в одних и тех же местах — до отмены, пока git о них помнит.
+            const conflicts = (await git(['diff', '--name-only', '--diff-filter=U']).catch(() => '')).split('\n').filter(Boolean);
             await git(['rebase', '--abort']).catch(() => {});
-            throw gitError(pullError, 'На GitHub есть изменения, которые не получилось совместить с вашими');
+            const e = gitError(pullError, 'Эти файлы изменили и здесь, и на другом компьютере (или на github.com) в одних и тех же местах');
+            e.extra = { ...e.extra, conflicts };
+            throw e;
           }
           await push().catch((e2) => Promise.reject(gitError(e2, 'Не удалось отправить на GitHub')));
         }
@@ -497,6 +564,8 @@ export function wikiApi({ siteRoot, dataDir }) {
           sendJson(res, e.status || 500, { error: e.message, ...e.extra });
         }
       });
+
+      startupSync = syncOnStart(server.config.logger);
 
       // Правки из других программ (VS Code, Блокнот) — сообщаем редактору, чтобы он перечитал файлы.
       server.watcher.add([contentDir, configFile]);

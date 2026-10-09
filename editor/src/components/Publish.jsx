@@ -104,7 +104,7 @@ export function PublishDialog({ unsaved, onClose }) {
   const canPublish = Boolean(status) && !inProgress && (pending > 0 || savable.length > 0);
   const fallback = defaultMessage(items);
 
-  const submit = async (e) => {
+  const submit = async (e, resolve) => {
     e?.preventDefault();
     if (!canPublish || busy) return;
     setFailure(null);
@@ -114,16 +114,19 @@ export function PublishDialog({ unsaved, onClose }) {
         await saveAll();
       }
       setBusy('publishing');
-      await publish(message.trim() || fallback);
+      await publish(message.trim() || fallback, resolve);
       setMessage('');
     } catch (err) {
-      setFailure({ message: err.message, details: err.data?.details });
+      // overlap — файлы, правки в которых пересеклись с правками на GitHub.
+      setFailure({ message: err.message, details: err.data?.details, overlap: err.data?.conflicts ?? [] });
     } finally {
       setBusy(null);
     }
   };
 
   const action = savable.length ? 'Сохранить и опубликовать' : 'Опубликовать';
+  // Правки пересеклись: обычная публикация снова упрётся в то же самое, выход — «Оставить мою версию».
+  const overlap = failure?.overlap.length > 0;
 
   return (
     <Modal
@@ -135,7 +138,7 @@ export function PublishDialog({ unsaved, onClose }) {
           <button className="btn" onClick={onClose}>
             {canPublish ? 'Отмена' : 'Закрыть'}
           </button>
-          {canPublish && (
+          {canPublish && !overlap && (
             <button className="btn primary" type="submit" form="publish-form" disabled={Boolean(busy)}>
               <Icon name="upload" /> {busy === 'saving' ? 'Сохраняю…' : busy === 'publishing' ? 'Публикую…' : action}
             </button>
@@ -152,6 +155,28 @@ export function PublishDialog({ unsaved, onClose }) {
         {failure && (
           <div className="publish-failure">
             <div className="form-error">{failure.message}</div>
+            {failure.overlap.length > 0 && (
+              <div className="publish-overlap">
+                <ul className="publish-list">
+                  {failure.overlap.map((p) => {
+                    const it = describe({ path: p, kind: 'modified' }, store.articles);
+                    return (
+                      <li key={p} title={p}>
+                        <Icon name={it.icon} size={15} />
+                        <span className="publish-title">{it.title}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="muted small">
+                  Можно оставить вашу версию: в пересёкшихся местах будут ваши правки, остальные правки с другого компьютера сохранятся. Прежний вариант
+                  останется в истории на GitHub.
+                </p>
+                <button className="btn primary" onClick={() => submit(null, 'mine')} disabled={Boolean(busy) || !canPublish}>
+                  Оставить мою версию и опубликовать
+                </button>
+              </div>
+            )}
             {failure.details && (
               <details>
                 <summary>Подробности</summary>
@@ -212,7 +237,7 @@ export function PublishDialog({ unsaved, onClose }) {
                 </ul>
               </div>
             )}
-            {!items.length && status.ahead > 0 && <p className="muted">Прошлая публикация не дошла до GitHub — отправлю её ещё раз.</p>}
+            {!items.length && status.ahead > 0 && !overlap && <p className="muted">Прошлая публикация не дошла до GitHub — отправлю её ещё раз.</p>}
             {items.length > 0 && (
               <label className="field">
                 <span className="field-label">Что изменили</span>

@@ -78,6 +78,47 @@ export function hunks(lines, context = 3) {
   return out;
 }
 
+/** Номер изменения (подряд идущие изменённые строки) для каждой строки сравнения, у неизменённых — -1. */
+export function changeBlocks(lines) {
+  let block = -1;
+  return lines.map((l, i) => {
+    if (l.type === 'same') return -1;
+    if (i === 0 || lines[i - 1].type === 'same') block++;
+    return block;
+  });
+}
+
+/** Текст, в котором одно изменение возвращено как было, а остальные правки остались. */
+export function revertBlock(lines, block) {
+  const blocks = changeBlocks(lines);
+  return lines
+    .filter((l, i) => l.type === 'same' || (blocks[i] === block ? l.type === 'del' : l.type === 'add'))
+    .map((l) => l.text)
+    .join('\n');
+}
+
+/**
+ * Пометки для редактора: какие строки нового текста изменены или добавлены (changed)
+ * и перед какими строками что-то удалили (deleted). Номера строк — с единицы.
+ */
+export function lineMarks(oldText, newText) {
+  const lines = diffLines(oldText, newText);
+  const blocks = changeBlocks(lines);
+  const total = lines.filter((l) => l.type !== 'del').length;
+  const marks = [];
+  let newNo = 0;
+  lines.forEach((l, i) => {
+    if (l.type !== 'del') newNo++;
+    if (l.type === 'add') marks.push({ line: newNo, type: 'changed' });
+    // Изменение из одних удалений: отмечаем строку, на месте которой был удалённый текст.
+    else if (l.type === 'del' && blocks[i] !== blocks[i + 1] && total) {
+      const pureDeletion = lines.every((x, j) => blocks[j] !== blocks[i] || x.type === 'del');
+      if (pureDeletion) marks.push({ line: Math.min(newNo + 1, total), type: 'deleted' });
+    }
+  });
+  return marks;
+}
+
 export const diffStats = (lines) => ({
   added: lines.filter((l) => l.type === 'add').length,
   removed: lines.filter((l) => l.type === 'del').length,

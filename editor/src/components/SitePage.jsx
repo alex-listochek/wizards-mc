@@ -126,7 +126,7 @@ export default function SitePage({ state }) {
 
   return (
     <div className="page-wrap narrow">
-      <header className="page-head">
+      <header className="page-head sticky">
         <div>
           <h1>Главная страница</h1>
           <p className="muted">

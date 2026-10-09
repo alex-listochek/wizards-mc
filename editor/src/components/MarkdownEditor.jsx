@@ -86,6 +86,25 @@ const problemField = StateField.define({
   provide: (f) => EditorView.decorations.from(f),
 });
 
+// Строки, изменённые после сохранения, отмечены полосой слева, место удалённого текста — красной.
+const setChangeMarks = StateEffect.define();
+const changeField = StateField.define({
+  create: () => Decoration.none,
+  update(deco, tr) {
+    deco = deco.map(tr.changes);
+    for (const e of tr.effects) {
+      if (!e.is(setChangeMarks)) continue;
+      const doc = tr.state.doc;
+      deco = Decoration.set(
+        e.value.filter((m) => m.line >= 1 && m.line <= doc.lines).map((m) => Decoration.line({ class: `cm-change-${m.type}` }).range(doc.line(m.line).from)),
+        true,
+      );
+    }
+    return deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
 const PHRASES = {
   Find: 'Найти',
   Replace: 'Заменить',
@@ -168,6 +187,7 @@ function createState(doc, cb) {
       decoPlugin(mcDecorator),
       decoPlugin(calloutDecorator),
       problemField,
+      changeField,
       EditorState.phrases.of(PHRASES),
       EditorView.contentAttributes.of({ spellcheck: 'true', lang: 'ru' }),
       Prec.highest(
@@ -208,7 +228,7 @@ function createState(doc, cb) {
  * Редактор markdown на CodeMirror. Управляется снаружи через value/onChange,
  * а ref даёт доступ к самому редактору для команд панели инструментов.
  */
-export default function MarkdownEditor({ ref, docKey, value, problems, ...handlers }) {
+export default function MarkdownEditor({ ref, docKey, value, problems, changes, ...handlers }) {
   const host = useRef(null);
   const viewRef = useRef(null);
   const keyRef = useRef(docKey);
@@ -269,6 +289,10 @@ export default function MarkdownEditor({ ref, docKey, value, problems, ...handle
   useEffect(() => {
     viewRef.current?.dispatch({ effects: setProblems.of(problems ?? []) });
   }, [problems]);
+
+  useEffect(() => {
+    viewRef.current?.dispatch({ effects: setChangeMarks.of(changes ?? []) });
+  }, [changes]);
 
   return <div className="cm-host" ref={host} />;
 }

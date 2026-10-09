@@ -1,5 +1,5 @@
 // Публикация на GitHub Pages: что ещё не опубликовано и как идёт сборка сайта на GitHub.
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { api } from '../api.js';
 import { toast } from './util.js';
 
@@ -23,10 +23,20 @@ const getState = () => state;
 export const usePublish = () => useSyncExternalStore(subscribe, getState);
 
 let refreshing = null;
+let queued = null;
 export function refreshStatus() {
-  refreshing ??= api
+  // Запрос уже идёт — его ответ может не учитывать последние правки: повторим, когда он вернётся.
+  if (refreshing) {
+    queued ??= refreshing.then(() => {
+      queued = null;
+      return refreshStatus();
+    });
+    return queued;
+  }
+  const at = Date.now();
+  refreshing = api
     .publishStatus()
-    .then((status) => set({ status, error: null }))
+    .then((status) => set({ status: { ...status, at }, error: null }))
     .catch((e) => set({ status: null, error: e.message }))
     .finally(() => (refreshing = null));
   return refreshing;
@@ -34,6 +44,31 @@ export function refreshStatus() {
 
 /** Сколько изменений ждёт публикации. */
 export const pendingCount = (status) => (status ? status.files.length + (status.ahead ? 1 : 0) : 0);
+
+/**
+ * Статьи («раздел/статья»), сохранённые, но ещё не опубликованные.
+ * Сохранённые уже после проверки тоже считаем такими — свежий ответ сервера придёт чуть позже.
+ */
+export function unpublishedKeys(status, articles) {
+  const keys = new Set();
+  if (!status) return keys;
+  for (const f of status.files) {
+    const m = f.path.match(/^src\/content\/(.+)\.md$/);
+    if (m && f.kind !== 'deleted') keys.add(m[1]);
+  }
+  for (const a of Object.values(articles)) if (a.mtime > status.at) keys.add(a.key);
+  return keys;
+}
+
+export const isPublishing = (build) => build?.phase === 'sending' || build?.phase === 'building';
+
+/** После сохранений и правок файлов пересчитываем, что не опубликовано. Вызывается один раз в App. */
+export function useStatusRefresh(store) {
+  useEffect(() => {
+    const t = setTimeout(refreshStatus, 400);
+    return () => clearTimeout(t);
+  }, [store.articles, store.config]);
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -67,14 +102,17 @@ async function watchBuild(sha, repo) {
 
 export async function publish(message) {
   set({ build: { phase: 'sending' } });
+  let res;
   try {
-    const { sha, repo } = await api.publish(message);
-    set({ build: { phase: repo ? 'building' : 'unknown', sha, repo, at: Date.now() } });
-    if (repo) watchBuild(sha, repo);
+    res = await api.publish(message);
   } catch (e) {
     set({ build: null });
-    throw e;
-  } finally {
     refreshStatus();
+    throw e;
   }
+  // Сначала свежий список изменений, потом итог — иначе окно на миг снова покажет уже отправленное.
+  await refreshStatus();
+  const { sha, repo } = res;
+  set({ build: { phase: repo ? 'building' : 'unknown', sha, repo, at: Date.now() } });
+  if (repo) watchBuild(sha, repo);
 }

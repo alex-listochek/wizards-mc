@@ -56,9 +56,11 @@ export default function MetaPanel({ fields, titleFallback, onChange, open, onTog
         <span>Свойства статьи</span>
         {!open && (
           <span className="meta-summary">
-            {fields.description ? 'описание' : 'без описания'} · {fields.tags.length} {plural(fields.tags.length, 'тег', 'тега', 'тегов')}
+            {fields.tags.length} {plural(fields.tags.length, 'тег', 'тега', 'тегов')}
             {fields.order !== '' && ` · порядок ${fields.order}`}
             {fields.updated && ` · обновлено ${fields.updated}`}
+            {' · '}
+            {fields.description ? `«${fields.description}»` : 'без описания'}
           </span>
         )}
       </button>

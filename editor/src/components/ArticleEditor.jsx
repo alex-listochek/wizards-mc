@@ -1,14 +1,19 @@
 import { toPlain } from '@site/lib/markdown.js';
+import { redoDepth, undoDepth } from '@codemirror/commands';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { insertImage, insertLink, insertTable, selectRange } from '../lib/commands.js';
+import { diffLines, lineMarks, revertBlock } from '../lib/diff.js';
 import { buildFile, parseFile } from '../lib/frontmatter.js';
 import { countBacklinks, findProblems, useLinkIndex } from '../lib/links.js';
+import { isPublishing, unpublishedKeys, usePublish } from '../lib/publish.js';
 import { renderArticle } from '../lib/render.js';
 import { editPath, formatAgo, go, plural, takeJump, toast, usePref } from '../lib/util.js';
 import {
   deleteArticle,
   discardDraft,
   getAutoDate,
+  getState,
+  isConflict,
   keepMine,
   recreateFromDraft,
   saveArticle,
@@ -102,6 +107,34 @@ function Problems({ problems, onShow, onFix }) {
   );
 }
 
+// Где сейчас правки статьи: только в редакторе, сохранены в файл или уже на сайте.
+function StatusPill({ conflict, dirty, articleKey, articles, onShowChanges }) {
+  const { status, build } = usePublish();
+  if (conflict) return <span className="pill danger" title="Файл изменили в другой программе — выберите, какую версию оставить">конфликт</span>;
+  if (dirty) {
+    return (
+      <button className="pill warn pill-btn" onClick={onShowChanges} title="Правки пока только в редакторе. Нажмите, чтобы посмотреть, что изменилось">
+        не сохранено
+      </button>
+    );
+  }
+  // Есть неотправленная публикация — по отдельным статьям уже не понять, что на сайте.
+  if (!status || status.ahead) return <span className="pill ok">сохранено</span>;
+  if (unpublishedKeys(status, articles).has(articleKey)) {
+    return (
+      <span className="pill info" title="Сохранено на компьютере. Чтобы правки появились на сайте и в Telegram, нажмите «Опубликовать»">
+        не опубликовано
+      </span>
+    );
+  }
+  if (isPublishing(build)) return <span className="pill info" title="Сайт обновится через 1–2 минуты">публикуется…</span>;
+  return (
+    <span className="pill ok" title="Эта версия статьи уже на сайте">
+      опубликовано
+    </span>
+  );
+}
+
 export default function ArticleEditor({ articleKey, state, theme, siteUrl, sitePublished }) {
   const article = state.articles[articleKey];
   const draft = state.drafts[articleKey];
@@ -150,12 +183,13 @@ function EditorScreen({ article, draft, state, theme, siteUrl, sitePublished }) 
   const conflict = Boolean(draft && draft.baseHash !== article.hash);
 
   const [mode, setMode] = usePref('mode', 'split');
-  const [metaOpen, setMetaOpen] = usePref('meta-open', true);
+  // Свойства меняют редко — по умолчанию свёрнуты, чтобы тексту было больше места.
+  const [metaOpen, setMetaOpen] = usePref('meta-open', false);
   const [device, setDevice] = usePref('device', 'desktop');
   const [sync, setSync] = usePref('sync-scroll', true);
   const [dialog, setDialog] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [cursor, setCursor] = useState({ line: 1, col: 1, selected: 0 });
+  const [cursor, setCursor] = useState({ line: 1, col: 1, selected: 0, undo: 0, redo: 0 });
   const [, rerender] = useState(0);
 
   const editorRef = useRef(null);
@@ -170,14 +204,29 @@ function EditorScreen({ article, draft, state, theme, siteUrl, sitePublished }) 
   const rendered = useMemo(() => renderArticle(dFields, dBody, article.slug), [dFields, dBody, article.slug]);
   const problems = useMemo(() => findProblems(dBody, key, index), [dBody, key, index]);
   const words = useMemo(() => dBody.match(/[\p{L}\p{N}]+/gu)?.length ?? 0, [dBody]);
+  // Отметки изменённых строк считаем по текущему тексту, а не отложенному — иначе после переключения статьи они бы на миг встали не туда.
+  const changeMarks = useMemo(() => (dirty ? lineMarks(article.body, body) : []), [dirty, article.body, body]);
 
   const currentRaw = () => buildFile(article.meta, article.fields, fields, body);
+
+  // Вернуть одно изменение как было, остальные правки оставить.
+  const revertChange = (block) => {
+    const v = parseFile(revertBlock(diffLines(article.raw, currentRaw()), block));
+    updateDraft(key, { fields: v.fields, body: v.body });
+    toast('Изменение возвращено как было');
+  };
+
+  // Все правки отменены (или возвращены по одной) — окну «Что изменилось» больше нечего показывать.
+  useEffect(() => {
+    if (!dirty && dialog === 'changes') setDialog(null);
+  }, [dirty, dialog]);
 
   // ---------- Сохранение ----------
 
   const save = async () => {
-    if (!draft || saving) return;
-    if (conflict) {
+    // Черновик берём из хранилища: Ctrl+S мог прийти раньше, чем экран обновился после последней буквы.
+    if (!getState().drafts[key] || saving) return;
+    if (isConflict(key)) {
       setDialog('conflict');
       return;
     }
@@ -343,13 +392,7 @@ function EditorScreen({ article, draft, state, theme, siteUrl, sitePublished }) 
           </div>
           <h1>
             {fields.title || rendered.title}
-            {conflict ? (
-              <span className="pill danger">конфликт</span>
-            ) : dirty ? (
-              <span className="pill warn">не сохранено</span>
-            ) : (
-              <span className="pill ok">сохранено</span>
-            )}
+            <StatusPill conflict={conflict} dirty={dirty} articleKey={key} articles={state.articles} onShowChanges={() => setDialog('changes')} />
           </h1>
         </div>
         <div className="doc-actions">
@@ -416,7 +459,15 @@ function EditorScreen({ article, draft, state, theme, siteUrl, sitePublished }) 
         onAutoDate={(on) => (setAutoDate(on), rerender((n) => n + 1))}
       />
 
-      <Toolbar getView={getView} onDialog={(name) => setDialog({ type: name, selected: selectedText() })} mode={mode} onMode={setMode} onHelp={() => setDialog('help')} />
+      <Toolbar
+        getView={getView}
+        onDialog={(name) => setDialog({ type: name, selected: selectedText() })}
+        mode={mode}
+        onMode={setMode}
+        onHelp={() => setDialog('help')}
+        canUndo={cursor.undo > 0}
+        canRedo={cursor.redo > 0}
+      />
 
       <div className="panes">
         <div className="pane pane-editor">
@@ -425,6 +476,7 @@ function EditorScreen({ article, draft, state, theme, siteUrl, sitePublished }) 
             docKey={key}
             value={body}
             problems={problems}
+            changes={changeMarks}
             onChange={(text) => updateDraft(key, { body: text })}
             onCommand={onCommand}
             onUpload={(file) => uploadImage(file, article.slug)}
@@ -433,7 +485,7 @@ function EditorScreen({ article, draft, state, theme, siteUrl, sitePublished }) 
             onCursor={(s) => {
               const r = s.selection.main;
               const line = s.doc.lineAt(r.head);
-              setCursor({ line: line.number, col: r.head - line.from + 1, selected: Math.abs(r.to - r.from) });
+              setCursor({ line: line.number, col: r.head - line.from + 1, selected: Math.abs(r.to - r.from), undo: undoDepth(s), redo: redoDepth(s) });
             }}
           />
         </div>
@@ -468,9 +520,15 @@ function EditorScreen({ article, draft, state, theme, siteUrl, sitePublished }) 
         </span>
         <Problems problems={problems} onShow={(p) => getView() && selectRange(getView(), p.from, p.to)} onFix={fixProblem} />
         <span className="status-spacer" />
-        <span className="muted" title={`Файл: src/content/${key}.md`}>
-          {dirty ? 'Есть несохранённые правки' : `Сохранено ${formatAgo(article.mtime)}`}
-        </span>
+        {dirty ? (
+          <button className="status-changes" onClick={() => setDialog('changes')} title="Изменённые строки отмечены полосой слева от текста">
+            <span className="status-changes-bar" /> Есть несохранённые правки — показать
+          </button>
+        ) : (
+          <span className="muted" title={`Файл: src/content/${key}.md`}>
+            Сохранено {formatAgo(article.mtime)}
+          </span>
+        )}
       </footer>
 
       {dialog === 'help' && <CheatSheet onClose={() => setDialog(null)} />}
@@ -483,7 +541,19 @@ function EditorScreen({ article, draft, state, theme, siteUrl, sitePublished }) 
           newText={currentRaw()}
           oldLabel="сохранённая версия"
           newLabel="текст в редакторе"
+          onRevert={revertChange}
           onClose={() => setDialog(null)}
+          footer={
+            <>
+              <span className="muted small foot-note">Зелёным — что добавлено, красным — что убрано. Правки пока не сохранены.</span>
+              <button className="btn" onClick={discard}>
+                Отменить все правки
+              </button>
+              <button className="btn primary" onClick={() => setDialog(null)}>
+                Закрыть
+              </button>
+            </>
+          }
         />
       )}
       {dialog === 'conflict' && (

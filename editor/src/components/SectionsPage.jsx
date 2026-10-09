@@ -130,7 +130,7 @@ export default function SectionsPage({ state }) {
 
   return (
     <div className="page-wrap">
-      <header className="page-head">
+      <header className="page-head sticky">
         <div>
           <h1>Разделы</h1>
           <p className="muted">

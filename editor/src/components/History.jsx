@@ -1,13 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { diffLines, diffStats, hunks } from '../lib/diff.js';
+import { changeBlocks, diffLines, diffStats, hunks } from '../lib/diff.js';
 import { formatAgo, formatTime, plural } from '../lib/util.js';
+import Icon from './Icons.jsx';
 import { Modal } from './Modal.jsx';
 
-export function DiffView({ oldText, newText, oldLabel, newLabel }) {
+/** Построчное сравнение. С onRevert(номер изменения) у каждого изменения есть кнопка «Вернуть как было». */
+export function DiffView({ oldText, newText, oldLabel, newLabel, onRevert }) {
   const lines = useMemo(() => diffLines(oldText, newText), [oldText, newText]);
+  const blocks = useMemo(() => changeBlocks(lines), [lines]);
   const stats = diffStats(lines);
   if (!stats.added && !stats.removed) return <div className="empty-note">Версии не отличаются</div>;
+  const at = new Map(lines.map((l, i) => [l, i]));
   return (
     <div className="diff">
       <div className="diff-head">
@@ -18,30 +22,44 @@ export function DiffView({ oldText, newText, oldLabel, newLabel }) {
         </span>
       </div>
       <div className="diff-body">
-        {hunks(lines).map((l, i) =>
-          l.type === 'skip' ? (
-            <div key={i} className="diff-skip">
-              ⋯ {l.count} {plural(l.count, 'строка', 'строки', 'строк')} без изменений
-            </div>
-          ) : (
-            <div key={i} className={`diff-line ${l.type}`}>
-              <span className="ln">{l.oldNo ?? ''}</span>
-              <span className="ln">{l.newNo ?? ''}</span>
-              <span className="sign">{l.type === 'add' ? '+' : l.type === 'del' ? '−' : ''}</span>
-              <span className="text">{l.text || ' '}</span>
-            </div>
-          ),
-        )}
+        {hunks(lines).map((l, i) => {
+          if (l.type === 'skip') {
+            return (
+              <div key={i} className="diff-skip">
+                ⋯ {l.count} {plural(l.count, 'строка', 'строки', 'строк')} без изменений
+              </div>
+            );
+          }
+          const n = at.get(l);
+          const startsBlock = onRevert && l.type !== 'same' && (n === 0 || blocks[n - 1] !== blocks[n]);
+          return (
+            <Fragment key={i}>
+              {startsBlock && (
+                <div className="diff-block-head">
+                  <button className="btn small" onClick={() => onRevert(blocks[n])} title="Отменить только это изменение, остальные правки останутся">
+                    <Icon name="undo" size={13} /> Вернуть как было
+                  </button>
+                </div>
+              )}
+              <div className={`diff-line ${l.type}`}>
+                <span className="ln">{l.oldNo ?? ''}</span>
+                <span className="ln">{l.newNo ?? ''}</span>
+                <span className="sign">{l.type === 'add' ? '+' : l.type === 'del' ? '−' : ''}</span>
+                <span className="text">{l.text || ' '}</span>
+              </div>
+            </Fragment>
+          );
+        })}
       </div>
     </div>
   );
 }
 
 /** Сравнение двух текстов в окне: «Что изменилось», «Файл изменён на диске». */
-export function DiffDialog({ title, oldText, newText, oldLabel, newLabel, footer, onClose }) {
+export function DiffDialog({ title, oldText, newText, oldLabel, newLabel, footer, onRevert, onClose }) {
   return (
     <Modal title={title} onClose={onClose} width={960} className="diff-modal" footer={footer}>
-      <DiffView oldText={oldText} newText={newText} oldLabel={oldLabel} newLabel={newLabel} />
+      <DiffView oldText={oldText} newText={newText} oldLabel={oldLabel} newLabel={newLabel} onRevert={onRevert} />
     </Modal>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { editPath, plural, toast, usePref } from '../lib/util.js';
+import { unpublishedKeys, usePublish } from '../lib/publish.js';
 import { buildSections, reorder, saveAll } from '../store.js';
 import Icon from './Icons.jsx';
 
@@ -57,8 +58,47 @@ function SiteStatus({ siteUrl, onChange, site }) {
   );
 }
 
-export default function Sidebar({ state, route, onNew, onSearch, siteUrl, onSiteUrl, site, theme, onTheme }) {
+/** Меню можно свернуть в узкую полоску с иконками — тексту статьи достанется больше места. */
+export default function Sidebar(props) {
+  const [hidden, setHidden] = usePref('sidebar-hidden', false);
+  return hidden ? <RailSidebar {...props} onExpand={() => setHidden(false)} /> : <FullSidebar {...props} onCollapse={() => setHidden(true)} />;
+}
+
+function RailSidebar({ state, route, onNew, onSearch, theme, onTheme, onExpand }) {
+  const drafts = Object.keys(state.drafts).filter((k) => state.articles[k]).length;
+  const link = (page, href, icon, title) => (
+    <a className={`rail-btn${route.page === page ? ' active' : ''}`} href={href} title={title} aria-label={title}>
+      <Icon name={icon} />
+    </a>
+  );
+  return (
+    <aside className="sidebar rail">
+      <button className="rail-btn" onClick={onExpand} title={drafts ? `Показать меню · несохранённые правки: ${drafts}` : 'Показать меню'} aria-label="Показать меню">
+        <Icon name="panelLeft" />
+        {drafts > 0 && <span className="rail-dot" />}
+      </button>
+      <button className="rail-btn primary" onClick={() => onNew()} title="Новая статья (Alt+N)" aria-label="Новая статья">
+        <Icon name="plus" />
+      </button>
+      <button className="rail-btn" onClick={onSearch} title="Поиск по всем статьям (Ctrl+P)" aria-label="Поиск">
+        <Icon name="search" />
+      </button>
+      <div className="rail-spacer" />
+      {link('home', '#/', 'home', 'Обзор')}
+      {link('sections', '#/sections', 'layers', 'Разделы')}
+      {link('site', '#/site', 'settings', 'Главная страница')}
+      {link('trash', '#/trash', 'trash', 'Корзина')}
+      <button className="rail-btn" onClick={onTheme} title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'} aria-label="Сменить тему">
+        <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+      </button>
+    </aside>
+  );
+}
+
+function FullSidebar({ state, route, onNew, onSearch, siteUrl, onSiteUrl, site, theme, onTheme, onCollapse }) {
   const sections = buildSections(state);
+  const { status } = usePublish();
+  const unpublished = unpublishedKeys(status, state.articles);
   const [filter, setFilter] = useState('');
   const [collapsed, setCollapsed] = usePref('collapsed', []);
   const [drag, setDrag] = useState(null);
@@ -108,6 +148,9 @@ export default function Sidebar({ state, route, onNew, onSearch, siteUrl, onSite
         </div>
         <button className="icon-btn" onClick={onTheme} title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
           <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+        </button>
+        <button className="icon-btn" onClick={onCollapse} title="Свернуть меню" aria-label="Свернуть меню">
+          <Icon name="panelLeft" />
         </button>
       </div>
 
@@ -196,7 +239,11 @@ export default function Sidebar({ state, route, onNew, onSearch, siteUrl, onSite
                       >
                         <a className={cls} href={`#${editPath(a.key)}`} title={`src/content/${a.key}.md`} draggable={false}>
                           <span className="side-link-text">{a.title}</span>
-                          {dirty && <span className="dirty-dot" title="Есть несохранённые правки" />}
+                          {dirty ? (
+                            <span className="dirty-dot" title="Есть несохранённые правки" />
+                          ) : (
+                            unpublished.has(a.key) && <span className="unpub-dot" title="Сохранено, но ещё не опубликовано" />
+                          )}
                         </a>
                       </li>
                     );

@@ -9,6 +9,7 @@ import Sidebar from './components/Sidebar.jsx';
 import SitePage from './components/SitePage.jsx';
 import Toasts from './components/Toasts.jsx';
 import TrashPage from './components/TrashPage.jsx';
+import { useStatusRefresh } from './lib/publish.js';
 import { plural, toast, useOnline, usePref, useRoute } from './lib/util.js';
 import { getState, load, useStore } from './store.js';
 
@@ -38,6 +39,7 @@ export default function App() {
   const publishedUrl = (state.config.server?.siteUrl ?? '').trim();
   const published = publishedUrl && publishedUrl.replace(/\/*$/, '/');
   const site = { local, url: local === false && published ? published : siteUrl };
+  useStatusRefresh(state);
 
   useEffect(() => {
     load({ initial: true })

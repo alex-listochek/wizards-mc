@@ -7,9 +7,9 @@ import Icon from './Icons.jsx';
 // mousedown не уводит фокус из редактора — выделение остаётся на месте.
 const keepFocus = (e) => e.preventDefault();
 
-function Btn({ icon, title, onClick, active, children }) {
+function Btn({ icon, title, onClick, active, disabled, children }) {
   return (
-    <button className={`tb-btn${active ? ' active' : ''}`} title={title} aria-label={title} onMouseDown={keepFocus} onClick={onClick}>
+    <button className={`tb-btn${active ? ' active' : ''}`} title={title} aria-label={title} onMouseDown={keepFocus} onClick={onClick} disabled={disabled}>
       {icon && <Icon name={icon} />}
       {children}
     </button>
@@ -45,7 +45,7 @@ function Menu({ icon, title, children }) {
   );
 }
 
-export default function Toolbar({ getView, onDialog, mode, onMode, onHelp }) {
+export default function Toolbar({ getView, onDialog, mode, onMode, onHelp, canUndo, canRedo }) {
   const act = (fn) => () => {
     const v = getView();
     if (v) fn(v);
@@ -54,8 +54,13 @@ export default function Toolbar({ getView, onDialog, mode, onMode, onHelp }) {
   return (
     <div className="toolbar" role="toolbar" aria-label="Форматирование">
       <div className="tb-group">
-        <Btn icon="undo" title="Отменить (Ctrl+Z)" onClick={act((v) => (undo(v), v.focus()))} />
-        <Btn icon="redo" title="Вернуть (Ctrl+Y)" onClick={act((v) => (redo(v), v.focus()))} />
+        <Btn
+          icon="undo"
+          title={canUndo ? 'Отменить последнее действие (Ctrl+Z)' : 'Отменять нечего. Несохранённые правки можно посмотреть и вернуть как было — кнопка «не сохранено» рядом с названием'}
+          disabled={!canUndo}
+          onClick={act((v) => (undo(v), v.focus()))}
+        />
+        <Btn icon="redo" title={canRedo ? 'Повторить отменённое (Ctrl+Y)' : 'Повторить отменённое (Ctrl+Y) — сейчас нечего'} disabled={!canRedo} onClick={act((v) => (redo(v), v.focus()))} />
       </div>
       <div className="tb-group">
         <Btn icon="h2" title="Раздел статьи (## Заголовок)" onClick={act((v) => setHeading(v, 2))} />

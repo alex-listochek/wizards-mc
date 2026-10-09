@@ -27,6 +27,11 @@ const External = Annotation.define();
 // Состояние редактора каждой статьи: история отмены, курсор и прокрутка сохраняются при переключении статей.
 const saved = new Map();
 
+// Обработчики (onChange и другие) — общие на модуль, как и saved: редактор на экране всегда один.
+// Сохранённое состояние статьи переживает сам компонент. Если бы оно держало обработчики создавшего его экземпляра,
+// правка после возврата к статье (например, через «Обзор») ушла бы в черновик статьи, открытой в том экземпляре последней.
+const cb = { current: {} };
+
 const highlight = HighlightStyle.define([
   { tag: t.heading1, fontWeight: '700', fontSize: '1.3em' },
   { tag: t.heading2, fontWeight: '700', fontSize: '1.18em' },
@@ -232,7 +237,6 @@ export default function MarkdownEditor({ ref, docKey, value, problems, changes, 
   const host = useRef(null);
   const viewRef = useRef(null);
   const keyRef = useRef(docKey);
-  const cb = useRef({});
   Object.assign(cb.current, handlers);
 
   useImperativeHandle(ref, () => ({ view: () => viewRef.current }), []);

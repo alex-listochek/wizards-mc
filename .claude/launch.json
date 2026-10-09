@@ -12,12 +12,6 @@
       "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
       "runtimeArgs": ["editor/node_modules/vite/bin/vite.js", "editor", "--port", "5174", "--strictPort"],
       "port": 5174
-    },
-    {
-      "name": "editor-test",
-      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
-      "runtimeArgs": ["C:\\Users\\Александр\\AppData\\Local\\Temp\\claude\\C--Users-----------Desktop-App\\b9e7daf9-1d8b-4fae-b785-969a7aef5c8b\\scratchpad\\Другой ПК\\Мой проект\\editor\\node_modules\\vite\\bin\\vite.js", "C:\\Users\\Александр\\AppData\\Local\\Temp\\claude\\C--Users-----------Desktop-App\\b9e7daf9-1d8b-4fae-b785-969a7aef5c8b\\scratchpad\\Другой ПК\\Мой проект\\editor", "--port", "5180", "--strictPort"],
-      "port": 5180
     }
   ]
 }

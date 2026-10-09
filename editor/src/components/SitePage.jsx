@@ -4,7 +4,7 @@ import { buildSections, saveConfig } from '../store.js';
 import Icon from './Icons.jsx';
 import PublishButton from './Publish.jsx';
 
-const KEYS = ['name', 'tagline', 'description', 'siteUrl', 'addresses', 'helpArticle', 'startArticle', 'links'];
+const KEYS = ['name', 'tagline', 'description', 'siteUrl', 'telegramBot', 'addresses', 'helpArticle', 'startArticle', 'links'];
 
 function fromConfig(server) {
   return {
@@ -12,6 +12,7 @@ function fromConfig(server) {
     tagline: server.tagline ?? '',
     description: server.description ?? '',
     siteUrl: server.siteUrl ?? '',
+    telegramBot: server.telegramBot ?? '',
     addresses: (server.addresses ?? []).map((a) => ({ edition: '', address: '', port: '', versions: '', ...a })),
     helpArticle: server.helpArticle ?? '',
     startArticle: server.startArticle ?? '',
@@ -33,6 +34,8 @@ function toConfig(v) {
     }));
   out.links = v.links.filter((l) => l.label.trim() && l.url.trim()).map((l) => ({ ...l, label: l.label.trim(), url: l.url.trim() }));
   for (const k of ['name', 'tagline', 'description', 'siteUrl']) out[k] = v[k].trim();
+  // Имя бота могут вставить как «@бот» или «https://t.me/бот» — оставляем только имя.
+  out.telegramBot = v.telegramBot.trim().replace(/^(https?:\/\/)?(t|telegram)\.me\//i, '').replace(/^@/, '').replace(/[/?#].*$/, '');
   return out;
 }
 
@@ -217,6 +220,17 @@ export default function SitePage({ state }) {
           <span className="field-label">Адрес сайта после публикации</span>
           <input value={v.siteUrl} onChange={set('siteUrl')} placeholder="https://wiki.example.ru" spellCheck={false} />
           <span className="field-hint">Без него Telegram не покажет картинку в превью ссылки. Применится после пересборки сайта.</span>
+        </label>
+      </section>
+
+      <section className="panel form">
+        <h2>Telegram Mini App</h2>
+        <label className="field">
+          <span className="field-label">Бот</span>
+          <input value={v.telegramBot} onChange={set('telegramBot')} placeholder="wizards_wiki_bot" spellCheck={false} />
+          <span className="field-hint">
+            Имя бота без @. Тогда у статьи в меню «⋯» появится «Скопировать ссылку для Telegram» — ссылка откроет статью прямо в Mini App.
+          </span>
         </label>
       </section>
     </div>

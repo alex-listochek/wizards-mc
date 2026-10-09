@@ -378,6 +378,21 @@ function EditorScreen({ article, draft, state, theme, siteUrl, sitePublished }) 
 
   const siteLink = `${siteUrl.replace(/\/+$/, '')}/#/${key}`;
 
+  // Ссылка, которая открывает статью прямо в Telegram Mini App: t.me/<бот>?startapp=раздел_статья.
+  // Сайт превращает startapp обратно в #/раздел/статья (src/lib/telegram.js).
+  const copyTelegramLink = () => {
+    const bot = state.config.server?.telegramBot;
+    if (!bot) return toast('Укажите бота Telegram на странице «Главная страница»', 'error');
+    if (!/^[a-z0-9-]+$/i.test(article.section) || !/^[a-z0-9-]+$/i.test(article.slug)) {
+      return toast('Telegram пропускает в ссылке только латиницу, цифры и дефис — переименуйте статью', 'error');
+    }
+    const url = `https://t.me/${bot}?startapp=${article.section}_${article.slug}`;
+    navigator.clipboard.writeText(url).then(
+      () => toast(`Ссылка скопирована: ${url}`, 'success'),
+      () => toast(url),
+    );
+  };
+
   return (
     <div className={`editor-screen mode-${mode}`}>
       <header className="doc-head">
@@ -421,6 +436,7 @@ function EditorScreen({ article, draft, state, theme, siteUrl, sitePublished }) 
           </a>
           <MoreMenu
             items={[
+              { icon: 'link', label: 'Скопировать ссылку для Telegram', onClick: copyTelegramLink },
               { icon: 'move', label: 'Переименовать или перенести', onClick: () => setDialog('move') },
               dirty && { icon: 'restore', label: 'Отменить несохранённые правки', onClick: discard },
               { icon: 'trash', label: 'Удалить статью', onClick: remove, danger: true },

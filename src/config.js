@@ -8,6 +8,8 @@ export const server = {
   // Адрес сайта после публикации, например 'https://wiki.example.ru'.
   // Без него Telegram не покажет картинку в превью ссылки.
   siteUrl: 'https://alex-listochek.github.io/wizards-mc',
+  // Бот, в котором сайт открывается как Telegram Mini App (без @). Нужен для ссылок на статьи вида t.me/<бот>?startapp=rules_chat.
+  telegramBot: 'wizards_wiki_bot',
   // Данные для входа. Первый адрес показывается в шапке сайта.
   addresses: [
     { edition: 'Java', address: 'wizards.ru-mc.ru:25603', versions: '1.21.4 – 26.2' },

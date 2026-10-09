@@ -7,7 +7,7 @@ tags: [ip, адрес, порт, версия, java, bedrock, вход, реги
 
 ## Java Edition
 
-Адрес сервера:
+Адрес сервераучцу:
 
 ```
 wizards.ru-mc.ru:25603

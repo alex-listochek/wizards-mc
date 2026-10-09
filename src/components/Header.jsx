@@ -59,14 +59,16 @@ export default function Header({ onMenu, onSearch, theme, onTheme }) {
 
       <div className="header-right">
         {server.addresses.length > 0 && <IpMenu />}
-        <button
-          className="icon-btn"
-          onClick={onTheme}
-          aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-          title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-        >
-          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-        </button>
+        {onTheme && (
+          <button
+            className="icon-btn"
+            onClick={onTheme}
+            aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+            title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+          >
+            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+          </button>
+        )}
       </div>
     </header>
   );

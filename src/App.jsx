@@ -8,6 +8,7 @@ import Toast from './components/Toast.jsx';
 import { server } from './config.js';
 import { findArticle } from './lib/content.js';
 import { Link, useRoute } from './lib/router.jsx';
+import { goBack, tg, useBackButton } from './lib/telegram.js';
 
 const isTyping = (el) => el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
 
@@ -53,6 +54,13 @@ export default function App() {
 
   const article = route.section ? findArticle(route.section, route.slug) : null;
 
+  // В Telegram «Назад» сначала закрывает поиск и меню, потом возвращает на прошлую страницу.
+  useBackButton(Boolean(route.section || menuOpen || searchOpen), () => {
+    if (searchOpen) setSearchOpen(false);
+    else if (menuOpen) setMenuOpen(false);
+    else goBack();
+  });
+
   useEffect(() => setMenuOpen(false), [route]);
   useEffect(() => {
     document.body.classList.toggle('lock', menuOpen);
@@ -85,7 +93,8 @@ export default function App() {
         onMenu={() => setMenuOpen((o) => !o)}
         onSearch={() => setSearchOpen(true)}
         theme={theme}
-        onTheme={toggleTheme}
+        // В Telegram тема переключается вместе с темой самого Telegram.
+        onTheme={tg ? null : toggleTheme}
       />
       <div className="layout">
         <Sidebar open={menuOpen} current={article} onClose={() => setMenuOpen(false)} />

@@ -3,6 +3,7 @@ import { server } from '../config.js';
 import { allArticles, articleHtml, sectionById } from '../lib/content.js';
 import { copy } from '../lib/copy.js';
 import { Link, navigate } from '../lib/router.jsx';
+import { openExternal } from '../lib/telegram.js';
 import { MobileToc, Toc, useActiveHeading } from './Toc.jsx';
 
 const formatDate = (s) => {
@@ -43,7 +44,7 @@ export default function Article({ article, route }) {
     }
     // Картинки в таблицах и тексте открываются в полном размере.
     if (e.target.tagName === 'IMG' && !e.target.closest('a')) {
-      window.open(e.target.src, '_blank', 'noopener,noreferrer');
+      openExternal(e.target.src);
       return;
     }
     const cmd = e.target.closest('code.cmd');

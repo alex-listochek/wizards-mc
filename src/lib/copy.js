@@ -1,3 +1,5 @@
+import { haptic } from './telegram.js';
+
 export async function copy(text, message = 'Скопировано') {
   try {
     await navigator.clipboard.writeText(text);
@@ -11,5 +13,6 @@ export async function copy(text, message = 'Скопировано') {
     document.execCommand('copy');
     ta.remove();
   }
+  haptic();
   window.dispatchEvent(new CustomEvent('toast', { detail: message }));
 }

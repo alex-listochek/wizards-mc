@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { server } from './src/config.js';
+import { knowledgeExport } from './knowledge-export.js';
 
 const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -34,7 +35,8 @@ function siteMeta() {
 export default defineConfig({
   // Относительные пути: сайт работает из любой папки (GitHub Pages, Netlify, обычный хостинг).
   base: './',
-  plugins: [react(), siteMeta()],
+  // knowledgeExport — kb.json для жабы-помощника в игре (плагин PetPetAI).
+  plugins: [react(), siteMeta(), knowledgeExport()],
   // Тексты всех статей встроены в сборку, чтобы поиск работал мгновенно и без сервера.
   build: { chunkSizeWarningLimit: 1000 },
   server: {

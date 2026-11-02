@@ -26,7 +26,7 @@ wizards.minecraft.in.net
 
 Скачайте ресурспак самостоятельно и положите файл в папку `resourcepacks`:
 
-[скачать wizards_pack.zip](https://www.mediafire.com/file/sw25ybf88rx82ni/wizards_pack.zip/file)
+[скачать wizards_pack.zip](https://www.mediafire.com/file/tkeqkf34ubk6imi/wizards_pack.zip/file)
 
 > [!NOTE]
 > Ресурспак регулярно обновляется — следите за актуальной версией по ссылке и заменяйте файл. Последнее обновление: **22.09.26**.
